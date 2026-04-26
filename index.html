@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaewai Vision 💙 – AI Object Detection Assistant</title>
+
+    <!-- Google Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- TensorFlow.js + COCO-SSD CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js">
+    </script>
+
+    <style>
+        /* ==================== CSS CUSTOM PROPERTIES ==================== */
+        :root {
+            --primary-blue: #4F7CFF;
+            --primary-blue-dark: #3A5FD9;
+            --soft-blue: #DCE7FF;
+            --accent: #A5BFFF;
+            --white: #FFFFFF;
+            --text: #1F2A44;
+            --text-light: #5A6785;
+            --bg: #F4F7FD;
+            --card-bg: #FFFFFF;
+            --shadow-sm: 0 2px 8px rgba(79, 124, 255, 0.08);
+            --shadow-md: 0 8px 32px rgba(79, 124, 255, 0.12);
+            --shadow-lg: 0 16px 48px rgba(79, 124, 255, 0.18);
+            --shadow-btn: 0 4px 16px rgba(79, 124, 255, 0.25);
+            --radius-sm: 12px;
+            --radius: 20px;
+            --radius-lg: 28px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+            /* Dark mode defaults (overridden by .dark-mode) */
+            --is-dark: 0;
+        }
+
+        /* ==================== DARK MODE ==================== */
+        body.dark-mode {
+            --bg: #131a2e;
+            --card-bg: #1c2541;
+            --text: #e8ecf4;
+            --text-light: #aab4cc;
+            --soft-blue: #243056;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+            --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.35);
+            --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45);
+            --shadow-btn: 0 4px 16px rgba(79, 124, 255, 0.35);
+        }
+        body.dark-mode .navbar {
+            background: rgba(28, 37, 65, 0.85);
+            border-bottom-color: rgba(255, 255, 255, 0.06);
+        }
+        body.dark-mode .video-container {
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: var(--shadow-lg), 0 0 0 1px rgba(79, 124, 255, 0.15);
+        }
+        body.dark-mode .panel-card {
+            border-color: rgba(255, 255, 255, 0.06);
+        }
+        body.dark-mode .alert-banner {
+            background: rgba(255, 200, 60, 0.12);
+            border-color: rgba(255, 180, 40, 0.35);
+            color: #ffd680;
+        }
+        body.dark-mode .alert-banner.danger {
+            background: rgba(255, 90, 90, 0.13);
+            border-color: rgba(255, 90, 90, 0.4);
+            color: #ffaaaa;
+        }
+        body.dark-mode .detected-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.06);
+        }
+        body.dark-mode .detected-item:hover {
+            background: rgba(79, 124, 255, 0.08);
+        }
+        body.dark-mode .footer-bar {
+            border-top-color: rgba(255, 255, 255, 0.06);
+        }
+        body.dark-mode .settings-panel {
+            background: var(--card-bg);
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+        body.dark-mode input[type="range"] {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        body.dark-mode .nav-link {
+            color: #c5cee0;
+        }
+        body.dark-mode .nav-link:hover,
+        body.dark-mode .nav-link.active {
+            color: #8aadff;
+        }
+        body.dark-mode .status-dot {
+            box-shadow: 0 0 12px rgba(80, 220, 120, 0.7);
+        }
+
+        /* ==================== GLOBAL RESET ==================== */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background var(--transition-slow), color var(--transition-slow);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(ellipse at 20% 15%, rgba(79, 124, 255, 0.06) 0%, transparent 55%),
+                radial-gradient(ellipse at 75% 80%, rgba(165, 191, 255, 0.07) 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 50%, rgba(220, 231, 255, 0.04) 0%, transparent 70%);
+            background-attachment: fixed;
+        }
+
+        /* ==================== NAVBAR ==================== */
+        .navbar {
+            width: 100%;
+            max-width: 1300px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 28px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(79, 124, 255, 0.1);
+            border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-slow);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .navbar .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: -0.3px;
+            white-space: nowrap;
+        }
+        .navbar .logo .icon {
+            font-size: 1.7rem;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-6px);
+            }
+        }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-light);
+            font-weight: 500;
+            font-size: 0.95rem;
+            padding: 8px 18px;
+            border-radius: 30px;
+            transition: all var(--transition);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-family: var(--font);
+            white-space: nowrap;
+        }
+        .nav-link:hover {
+            color: var(--primary-blue);
+            background: var(--soft-blue);
+        }
+        .nav-link.active {
+            color: var(--primary-blue);
+            background: var(--soft-blue);
+            font-weight: 600;
+        }
+        .dark-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--soft-blue);
+            color: var(--primary-blue);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .dark-toggle:hover {
+            background: var(--accent);
+            transform: rotate(20deg);
+            box-shadow: var(--shadow-btn);
+        }
+
+        /* ==================== MAIN LAYOUT ==================== */
+        .main-container {
+            width: 100%;
+            max-width: 1300px;
+            margin: 20px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 260px 1fr 280px;
+            grid-template-rows: auto auto;
+            gap: 20px;
+            flex: 1;
+        }
+
+        /* ==================== PANEL CARDS ==================== */
+        .panel-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 22px 20px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(79, 124, 255, 0.08);
+            transition: all var(--transition-slow);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .panel-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: -0.2px;
+        }
+        .panel-card h3 .emoji {
+            font-size: 1.3rem;
+        }
+
+        /* ==================== LEFT PANEL ==================== */
+        .left-panel {
+            grid-row: span 2;
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .toggle-row span {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+        /* Custom Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #d5dce8;
+            border-radius: 28px;
+            transition: var(--transition);
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: var(--transition);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+        }
+        .toggle-switch input:checked+.toggle-slider {
+            background: var(--primary-blue);
+        }
+        .toggle-switch input:checked+.toggle-slider::before {
+            transform: translateX(22px);
+        }
+
+        /* Mode selector buttons */
+        .mode-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .mode-btn {
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            border: 2px solid transparent;
+            cursor: pointer;
+            font-family: var(--font);
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all var(--transition);
+            background: var(--soft-blue);
+            color: var(--text);
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mode-btn:hover {
+            border-color: var(--accent);
+            box-shadow: var(--shadow-sm);
+        }
+        .mode-btn.active-mode {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+            box-shadow: var(--shadow-btn);
+            font-weight: 600;
+        }
+        .mode-btn .mode-icon {
+            font-size: 1.4rem;
+        }
+        .mode-desc {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-top: 2px;
+            line-height: 1.3;
+        }
+        .mode-btn.active-mode .mode-desc {
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        /* ==================== CENTER (VIDEO) ==================== */
+        .center-area {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            grid-row: span 2;
+        }
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            max-height: 520px;
+            background: #0a0f1e;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg), 0 0 0 1px rgba(79, 124, 255, 0.1);
+            border: 3px solid rgba(79, 124, 255, 0.15);
+            transition: all var(--transition-slow);
+        }
+        .video-wrapper.active-camera {
+            border-color: rgba(80, 220, 120, 0.5);
+            box-shadow: var(--shadow-lg), 0 0 30px rgba(80, 220, 120, 0.12);
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: calc(var(--radius) - 3px);
+            overflow: hidden;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            border-radius: calc(var(--radius) - 3px);
+        }
+        #canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            border-radius: calc(var(--radius) - 3px);
+        }
+        .camera-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.7);
+            z-index: 2;
+            pointer-events: none;
+            gap: 12px;
+        }
+        .camera-placeholder .placeholder-icon {
+            font-size: 4rem;
+            animation: pulse-gentle 2s ease-in-out infinite;
+        }
+        @keyframes pulse-gentle {
+            0%,
+            100% {
+                opacity: 0.5;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.08);
+            }
+        }
+        .camera-placeholder span {
+            font-family: var(--font);
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        /* Alert banner */
+        .alert-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            font-size: 0.9rem;
+            background: rgba(255, 200, 60, 0.1);
+            border: 1px solid rgba(255, 180, 40, 0.3);
+            color: #8a6d20;
+            transition: all var(--transition);
+            opacity: 0;
+            transform: translateY(-8px);
+            pointer-events: none;
+            min-height: 44px;
+        }
+        .alert-banner.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .alert-banner.danger {
+            background: rgba(255, 80, 80, 0.1);
+            border-color: rgba(255, 80, 80, 0.35);
+            color: #a04040;
+            animation: alert-pulse 0.6s ease-out;
+        }
+        @keyframes alert-pulse {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 80, 80, 0);
+            }
+            50% {
+                box-shadow: 0 0 0 14px rgba(255, 80, 80, 0.08);
+            }
+        }
+        .alert-banner .alert-icon {
+            font-size: 1.4rem;
+        }
+
+        /* ==================== RIGHT PANEL ==================== */
+        .right-panel {
+            grid-row: span 2;
+        }
+        .detected-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent) transparent;
+        }
+        .detected-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .detected-list::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+        .detected-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            background: rgba(79, 124, 255, 0.03);
+            border: 1px solid rgba(79, 124, 255, 0.06);
+            transition: all var(--transition);
+            animation: fadeInItem 0.3s ease-out;
+        }
+        @keyframes fadeInItem {
+            from {
+                opacity: 0;
+                transform: translateX(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        .detected-item:hover {
+            background: rgba(79, 124, 255, 0.07);
+            border-color: var(--accent);
+        }
+        .detected-item .obj-emoji {
+            font-size: 1.6rem;
+            flex-shrink: 0;
+        }
+        .detected-item .obj-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .detected-item .obj-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text);
+            text-transform: capitalize;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .detected-item .obj-confidence {
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+        .confidence-bar-wrap {
+            width: 100%;
+            height: 4px;
+            background: rgba(79, 124, 255, 0.12);
+            border-radius: 4px;
+            margin-top: 3px;
+            overflow: hidden;
+        }
+        .confidence-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: var(--primary-blue);
+            transition: width 0.4s ease-out;
+        }
+        .confidence-bar-fill.high {
+            background: #4ade80;
+        }
+        .confidence-bar-fill.medium {
+            background: #facc15;
+        }
+        .confidence-bar-fill.low {
+            background: #f87171;
+        }
+        .no-detections {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 0.85rem;
+            padding: 30px 10px;
+            opacity: 0.7;
+        }
+
+        /* ==================== SETTINGS PANEL ==================== */
+        .settings-panel {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px 22px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(79, 124, 255, 0.08);
+            display: none;
+            flex-direction: column;
+            gap: 14px;
+            grid-column: 1 / -1;
+            transition: all var(--transition);
+        }
+        .settings-panel.open {
+            display: flex;
+            animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .settings-panel h3 {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .setting-row label {
+            font-weight: 500;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .setting-row input[type="range"] {
+            flex: 1;
+            min-width: 100px;
+            accent-color: var(--primary-blue);
+            height: 6px;
+        }
+        .setting-row .range-val {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--primary-blue);
+            min-width: 35px;
+            text-align: right;
+        }
+
+        /* ==================== FOOTER ==================== */
+        .footer-bar {
+            width: 100%;
+            max-width: 1300px;
+            margin: 0 auto 12px;
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            border-top: 1px solid rgba(79, 124, 255, 0.08);
+            transition: all var(--transition-slow);
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+            flex-shrink: 0;
+            transition: all var(--transition);
+        }
+        .status-dot.active {
+            background: #4ade80;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.6);
+            animation: dotPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes dotPulse {
+            0%,
+            100% {
+                box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 18px rgba(74, 222, 128, 0.9);
+            }
+        }
+        .status-dot.warning {
+            background: #facc15;
+            box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+        }
+
+        /* ==================== RESPONSIVE BREAKPOINTS ==================== */
+        @media (max-width: 1100px) {
+            .main-container {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto auto auto;
+                gap: 14px;
+            }
+            .left-panel {
+                grid-row: span 1;
+                grid-column: span 2;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 12px;
+                align-items: center;
+                padding: 16px 18px;
+            }
+            .left-panel .mode-selector {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            .left-panel .mode-btn {
+                flex: 1;
+                min-width: 130px;
+                font-size: 0.8rem;
+                padding: 10px 12px;
+            }
+            .center-area {
+                grid-row: span 1;
+                grid-column: span 2;
+            }
+            .right-panel {
+                grid-row: span 1;
+                grid-column: span 2;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 10px;
+                padding: 16px 18px;
+            }
+            .right-panel .detected-list {
+                flex-direction: row;
+                flex-wrap: wrap;
+                max-height: none;
+                gap: 6px;
+            }
+            .right-panel .detected-item {
+                flex: 0 0 auto;
+                min-width: 140px;
+            }
+            .video-wrapper {
+                aspect-ratio: 16 / 10;
+                max-height: 380px;
+            }
+        }
+        @media (max-width: 640px) {
+            .navbar {
+                padding: 10px 14px;
+                border-radius: 0 0 var(--radius) var(--radius);
+            }
+            .navbar .logo {
+                font-size: 1.2rem;
+            }
+            .nav-link {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+            .main-container {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                padding: 0 10px;
+                margin: 10px auto;
+            }
+            .left-panel,
+            .center-area,
+            .right-panel {
+                grid-column: span 1;
+            }
+            .left-panel {
+                flex-direction: column;
+            }
+            .video-wrapper {
+                aspect-ratio: 3 / 4;
+                max-height: 420px;
+            }
+            .right-panel .detected-list {
+                flex-direction: column;
+            }
+            .footer-bar {
+                padding: 10px 14px;
+                font-size: 0.7rem;
+            }
+            .settings-panel {
+                padding: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== NAVBAR ==================== -->
+    <nav class="navbar" role="navigation" aria-label="Main navigation">
+        <div class="logo">
+            <span class="icon">💙</span> Kaewai Vision
+        </div>
+        <ul class="nav-links">
+            <li><button class="nav-link active" data-nav="home" aria-current="page">🏠 Home</button></li>
+            <li><button class="nav-link" data-nav="detect" id="nav-detect-btn">🔍 Detect</button></li>
+            <li><button class="nav-link" data-nav="settings" id="nav-settings-btn">⚙️ Settings</button></li>
+        </ul>
+        <button class="dark-toggle" id="dark-toggle-btn" aria-label="Toggle dark mode" title="Toggle dark mode">🌙</button>
+    </nav>
+
+    <!-- ==================== SETTINGS PANEL (collapsible) ==================== -->
+    <div class="settings-panel" id="settings-panel" aria-hidden="true">
+        <h3>⚙️ Detection Settings</h3>
+        <div class="setting-row">
+            <label for="confidence-threshold">Confidence Threshold:</label>
+            <input type="range" id="confidence-threshold" min="30" max="90" value="55" step="5">
+            <span class="range-val" id="threshold-val">55%</span>
+        </div>
+        <div class="setting-row">
+            <label for="detection-interval">Detection Interval (ms):</label>
+            <input type="range" id="detection-interval" min="150" max="800" value="250" step="10">
+            <span class="range-val" id="interval-val">250ms</span>
+        </div>
+        <div class="setting-row">
+            <label for="voice-rate">Voice Speed:</label>
+            <input type="range" id="voice-rate" min="0.5" max="1.8" value="1.0" step="0.1">
+            <span class="range-val" id="rate-val">1.0x</span>
+        </div>
+        <div class="setting-row">
+            <label for="voice-cooldown">Voice Cooldown (sec):</label>
+            <input type="range" id="voice-cooldown" min="2" max="15" value="5" step="1">
+            <span class="range-val" id="cooldown-val">5s</span>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <main class="main-container" role="main">
+
+        <!-- LEFT PANEL -->
+        <aside class="panel-card left-panel" aria-label="Controls">
+            <h3><span class="emoji">🎛️</span> Controls</h3>
+            <div class="toggle-row">
+                <span>🔊 Voice Alerts</span>
+                <label class="toggle-switch" aria-label="Toggle voice alerts">
+                    <input type="checkbox" id="voice-toggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="mode-selector">
+                <button class="mode-btn active-mode" data-mode="normal" id="mode-normal">
+                    <span class="mode-icon">👁️</span>
+                    <div>
+                        <strong>Normal Mode</strong>
+                        <div class="mode-desc">Standard detection & selective alerts</div>
+                    </div>
+                </button>
+                <button class="mode-btn" data-mode="blind-assist" id="mode-blind">
+                    <span class="mode-icon">🦯</span>
+                    <div>
+                        <strong>Blind Assist Mode</strong>
+                        <div class="mode-desc">Detailed voice guidance & frequent alerts</div>
+                    </div>
+                </button>
+            </div>
+            <div style="margin-top:auto; padding-top:8px; border-top:1px solid rgba(79,124,255,0.1);">
+                <small style="color:var(--text-light);">💡 Tip: Allow camera access when prompted. Keep objects within frame for best results.</small>
+            </div>
+        </aside>
+
+        <!-- CENTER AREA: Video + Alert -->
+        <section class="center-area" aria-label="Camera feed">
+            <div class="video-wrapper" id="video-wrapper">
+                <div class="video-container" id="video-container">
+                    <video id="video" autoplay playsinline muted aria-label="Live camera feed"></video>
+                    <canvas id="canvas-overlay" aria-hidden="true"></canvas>
+                    <div class="camera-placeholder" id="camera-placeholder">
+                        <span class="placeholder-icon">📷</span>
+                        <span>Camera will appear here</span>
+                        <small style="opacity:0.6;">Click "Detect" or allow access</small>
+                    </div>
+                </div>
+            </div>
+            <div class="alert-banner" id="alert-banner" role="alert" aria-live="polite">
+                <span class="alert-icon">✅</span>
+                <span id="alert-text">Ready — waiting for detection...</span>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL -->
+        <aside class="panel-card right-panel" aria-label="Detected objects">
+            <h3><span class="emoji">📋</span> Detected Objects</h3>
+            <div class="detected-list" id="detected-list">
+                <div class="no-detections">No objects detected yet.<br>📷 Point camera at something!</div>
+            </div>
+            <small style="color:var(--text-light); text-align:center; display:block; margin-top:4px;">
+                Confidence threshold: <strong id="threshold-display">55%</strong>
+            </small>
+        </aside>
+
+    </main>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer class="footer-bar" role="contentinfo">
+        <div class="status-indicator">
+            <span class="status-dot" id="status-dot" title="Camera status"></span>
+            <span id="status-text">Camera: Waiting...</span>
+        </div>
+        <div>
+            <span id="ai-status">🤖 AI: Not loaded</span>
+        </div>
+        <div>
+            <span>Kaewai Vision 💙 | Built with TensorFlow.js</span>
+        </div>
+    </footer>
+
+    <!-- ==================== JAVASCRIPT ==================== -->
+    <script>
+        (function() {
+            // ==================== DOM ELEMENT REFERENCES ====================
+            const videoEl = document.getElementById('video');
+            const canvasEl = document.getElementById('canvas-overlay');
+            const ctx = canvasEl.getContext('2d');
+            const videoWrapper = document.getElementById('video-wrapper');
+            const videoContainer = document.getElementById('video-container');
+            const cameraPlaceholder = document.getElementById('camera-placeholder');
+            const alertBanner = document.getElementById('alert-banner');
+            const alertText = document.getElementById('alert-text');
+            const detectedList = document.getElementById('detected-list');
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const aiStatus = document.getElementById('ai-status');
+            const voiceToggle = document.getElementById('voice-toggle');
+            const modeNormalBtn = document.getElementById('mode-normal');
+            const modeBlindBtn = document.getElementById('mode-blind');
+            const darkToggleBtn = document.getElementById('dark-toggle-btn');
+            const settingsPanel = document.getElementById('settings-panel');
+            const navSettingsBtn = document.getElementById('nav-settings-btn');
+            const navDetectBtn = document.getElementById('nav-detect-btn');
+            const thresholdSlider = document.getElementById('confidence-threshold');
+            const intervalSlider = document.getElementById('detection-interval');
+            const voiceRateSlider = document.getElementById('voice-rate');
+            const voiceCooldownSlider = document.getElementById('voice-cooldown');
+            const thresholdValEl = document.getElementById('threshold-val');
+            const intervalValEl = document.getElementById('interval-val');
+            const rateValEl = document.getElementById('rate-val');
+            const cooldownValEl = document.getElementById('cooldown-val');
+            const thresholdDisplay = document.getElementById('threshold-display');
+
+            // ==================== STATE VARIABLES ==================== */
+            let cocoModel = null;
+            let cameraStream = null;
+            let detectionLoopId = null;
+            let isDetecting = false;
+            let currentMode = 'normal'; // 'normal' | 'blind-assist'
+            let lastSpokenTimestamps = {}; // { 'person': 1678901234567, 'car': ... }
+            let lastAlertTimestamps = {}; // for visual alerts
+            let currentPredictions = [];
+            let animationFrameId = null;
+            let lastDetectionTime = 0;
+
+            // Configurable settings
+            let confidenceThreshold = 0.55; // 55%
+            let detectionIntervalMs = 250; // ms between detection runs
+            let voiceRate = 1.0;
+            let voiceCooldownSec = 5; // seconds before re-announcing same object
+            let voiceEnabled = true;
+
+            // ==================== OBJECT EMOJI MAP ==================== */
+            const objectEmojiMap = {
+                'person': '🧑',
+                'bicycle': '🚲',
+                'car': '🚗',
+                'motorcycle': '🏍️',
+                'airplane': '✈️',
+                'bus': '🚌',
+                'train': '🚂',
+                'truck': '🚛',
+                'boat': '⛵',
+                'traffic light': '🚦',
+                'fire hydrant': '🔥',
+                'stop sign': '🛑',
+                'parking meter': '🅿️',
+                'bench': '🪑',
+                'bird': '🐦',
+                'cat': '🐱',
+                'dog': '🐶',
+                'horse': '🐴',
+                'sheep': '🐑',
+                'cow': '🐄',
+                'elephant': '🐘',
+                'bear': '🐻',
+                'zebra': '🦓',
+                'giraffe': '🦒',
+                'backpack': '🎒',
+                'umbrella': '☂️',
+                'handbag': '👜',
+                'tie': '👔',
+                'suitcase': '🧳',
+                'frisbee': '🥏',
+                'skis': '🎿',
+                'snowboard': '🏂',
+                'sports ball': '⚽',
+                'kite': '🪁',
+                'baseball bat': '🏏',
+                'baseball glove': '🥊',
+                'skateboard': '🛹',
+                'surfboard': '🏄',
+                'tennis racket': '🎾',
+                'bottle': '🍾',
+                'wine glass': '🍷',
+                'cup': '☕',
+                'fork': '🍴',
+                'knife': '🔪',
+                'spoon': '🥄',
+                'bowl': '🥣',
+                'banana': '🍌',
+                'apple': '🍎',
+                'sandwich': '🥪',
+                'orange': '🍊',
+                'broccoli': '🥦',
+                'carrot': '🥕',
+                'hot dog': '🌭',
+                'pizza': '🍕',
+                'donut': '🍩',
+                'cake': '🎂',
+                'chair': '🪑',
+                'couch': '🛋️',
+                'potted plant': '🪴',
+                'bed': '🛏️',
+                'dining table': '🍽️',
+                'toilet': '🚽',
+                'tv': '📺',
+                'laptop': '💻',
+                'mouse': '🖱️',
+                'remote': '📱',
+                'keyboard': '⌨️',
+                'cell phone': '📱',
+                'microwave': '♨️',
+                'oven': '🔥',
+                'toaster': '🍞',
+                'sink': '🚰',
+                'refrigerator': '🧊',
+                'book': '📖',
+                'clock': '🕐',
+                'vase': '🏺',
+                'scissors': '✂️',
+                'teddy bear': '🧸',
+                'hair drier': '💨',
+                'toothbrush': '🪥',
+            };
+
+            /**
+             * Get emoji for an object class name
+             * @param {string} className
+             * @returns {string} emoji or 🔷 fallback
+             */
+            function getObjectEmoji(className) {
+                return objectEmojiMap[className.toLowerCase()] || '🔷';
+            }
+
+            // ==================== DARK MODE ==================== */
+            /**
+             * Toggle dark mode on/off and persist preference
+             */
+            function toggleDarkMode() {
+                const isDark = document.body.classList.toggle('dark-mode');
+                darkToggleBtn.textContent = isDark ? '☀️' : '🌙';
+                try {
+                    localStorage.setItem('kaewai-dark-mode', isDark ? '1' : '0');
+                } catch (e) { /* ignore */ }
+            }
+
+            /**
+             * Load dark mode preference from localStorage
+             */
+            function loadDarkModePreference() {
+                try {
+                    const saved = localStorage.getItem('kaewai-dark-mode');
+                    if (saved === '1') {
+                        document.body.classList.add('dark-mode');
+                        darkToggleBtn.textContent = '☀️';
+                    }
+                } catch (e) { /* ignore */ }
+            }
+            loadDarkModePreference();
+            darkToggleBtn.addEventListener('click', toggleDarkMode);
+
+            // ==================== SETTINGS PANEL ==================== */
+            let settingsOpen = false;
+            navSettingsBtn.addEventListener('click', () => {
+                settingsOpen = !settingsOpen;
+                if (settingsOpen) {
+                    settingsPanel.classList.add('open');
+                    settingsPanel.setAttribute('aria-hidden', 'false');
+                    navSettingsBtn.classList.add('active');
+                } else {
+                    settingsPanel.classList.remove('open');
+                    settingsPanel.setAttribute('aria-hidden', 'true');
+                    navSettingsBtn.classList.remove('active');
+                }
+            });
+
+            // Update settings display
+            thresholdSlider.addEventListener('input', () => {
+                confidenceThreshold = parseInt(thresholdSlider.value) / 100;
+                thresholdValEl.textContent = thresholdSlider.value + '%';
+                thresholdDisplay.textContent = thresholdSlider.value + '%';
+            });
+            intervalSlider.addEventListener('input', () => {
+                detectionIntervalMs = parseInt(intervalSlider.value);
+                intervalValEl.textContent = detectionIntervalMs + 'ms';
+            });
+            voiceRateSlider.addEventListener('input', () => {
+                voiceRate = parseFloat(voiceRateSlider.value);
+                rateValEl.textContent = voiceRate.toFixed(1) + 'x';
+            });
+            voiceCooldownSlider.addEventListener('input', () => {
+                voiceCooldownSec = parseInt(voiceCooldownSlider.value);
+                cooldownValEl.textContent = voiceCooldownSec + 's';
+            });
+            voiceToggle.addEventListener('change', () => {
+                voiceEnabled = voiceToggle.checked;
+                // If turning off, cancel any ongoing speech
+                if (!voiceEnabled && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+            });
+
+            // Initialize settings display values
+            thresholdValEl.textContent = thresholdSlider.value + '%';
+            intervalValEl.textContent = intervalSlider.value + 'ms';
+            rateValEl.textContent = parseFloat(voiceRateSlider.value).toFixed(1) + 'x';
+            cooldownValEl.textContent = voiceCooldownSlider.value + 's';
+            thresholdDisplay.textContent = thresholdSlider.value + '%';
+
+            // ==================== NAVIGATION ==================== */
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    const nav = this.getAttribute('data-nav');
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove(
+                        'active'));
+                    this.classList.add('active');
+                    if (nav === 'detect') {
+                        // Scroll to video / re-initialize camera
+                        videoWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        if (!cameraStream) {
+                            initializeCamera();
+                        }
+                    }
+                    if (nav === 'settings') {
+                        settingsOpen = true;
+                        settingsPanel.classList.add('open');
+                        settingsPanel.setAttribute('aria-hidden', 'false');
+                        navSettingsBtn.classList.add('active');
+                        settingsPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    if (nav === 'home') {
+                        settingsOpen = false;
+                        settingsPanel.classList.remove('open');
+                        settingsPanel.setAttribute('aria-hidden', 'true');
+                        navSettingsBtn.classList.remove('active');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                });
+            });
+
+            // ==================== MODE SWITCHING ==================== */
+            modeNormalBtn.addEventListener('click', () => setMode('normal'));
+            modeBlindBtn.addEventListener('click', () => setMode('blind-assist'));
+
+            /**
+             * Switch between Normal and Blind Assist modes
+             * @param {string} mode - 'normal' | 'blind-assist'
+             */
+            function setMode(mode) {
+                currentMode = mode;
+                if (mode === 'normal') {
+                    modeNormalBtn.classList.add('active-mode');
+                    modeBlindBtn.classList.remove('active-mode');
+                    // In normal mode: higher effective cooldown, fewer alerts
+                    voiceCooldownSec = Math.max(voiceCooldownSec, 4);
+                } else {
+                    modeBlindBtn.classList.add('active-mode');
+                    modeNormalBtn.classList.remove('active-mode');
+                    // In blind assist: more aggressive detection & voice
+                    voiceCooldownSec = Math.min(voiceCooldownSec, 3);
+                    voiceCooldownSlider.value = Math.min(voiceCooldownSlider.value, 3);
+                    cooldownValEl.textContent = voiceCooldownSlider.value + 's';
+                }
+                // Reset timestamps to allow fresh alerts on mode switch
+                lastSpokenTimestamps = {};
+                lastAlertTimestamps = {};
+                updateAlertBanner('info', '🔄 Mode switched to: ' + (mode === 'normal' ? 'Normal' :
+                    'Blind Assist'));
+            }
+
+            // ==================== CAMERA SETUP ==================== */
+            /**
+             * Initialize the device camera and start the video stream
+             * @returns {Promise<void>}
+             */
+            async function initializeCamera() {
+                try {
+                    // Stop any existing stream
+                    if (cameraStream) {
+                        cameraStream.getTracks().forEach(track => track.stop());
+                        cameraStream = null;
+                    }
+
+                    updateStatus('loading', 'Camera: Requesting access...');
+                    aiStatus.textContent = '🤖 AI: Waiting for camera...';
+
+                    // Request camera access with reasonable resolution
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: 'environment', // Use rear camera on mobile
+                        },
+                        audio: false,
+                    });
+
+                    cameraStream = stream;
+                    videoEl.srcObject = stream;
+
+                    // Wait for video to be ready
+                    await new Promise((resolve, reject) => {
+                        videoEl.onloadedmetadata = () => {
+                            videoEl.play().then(resolve).catch(reject);
+                        };
+                        // Timeout after 8 seconds
+                        setTimeout(() => reject(new Error('Video load timeout')), 8000);
+                    });
+
+                    // Hide placeholder, show active camera border
+                    cameraPlaceholder.style.display = 'none';
+                    videoWrapper.classList.add('active-camera');
+                    updateStatus('active', 'Camera: Active ✅');
+                    updateAlertBanner('info', '📷 Camera ready! Loading AI model...');
+
+                    // Set canvas size to match video display dimensions
+                    resizeCanvas();
+
+                    // Load model if not already loaded
+                    if (!cocoModel) {
+                        await loadModel();
+                    }
+
+                    // Start detection loop
+                    startDetectionLoop();
+                    aiStatus.textContent = '🤖 AI: Running';
+                    updateAlertBanner('info', '✅ AI is running — detecting objects...');
+
+                } catch (error) {
+                    console.error('Camera initialization error:', error);
+                    updateStatus('error', 'Camera: Access denied or unavailable');
+                    aiStatus.textContent = '🤖 AI: Waiting for camera';
+                    cameraPlaceholder.style.display = 'flex';
+                    cameraPlaceholder.querySelector('span').textContent = '⚠️ Camera unavailable';
+                    cameraPlaceholder.querySelector('small').textContent =
+                        'Please allow camera access and reload';
+                    updateAlertBanner('danger', '⚠️ Camera access required. Please grant permission and reload the page.'
+                        );
+                }
+            }
+
+            /**
+             * Resize the canvas overlay to match the video element's display size
+             */
+            function resizeCanvas() {
+                const rect = videoEl.getBoundingClientRect();
+                const displayWidth = rect.width;
+                const displayHeight = rect.height;
+                if (displayWidth > 0 && displayHeight > 0) {
+                    canvasEl.width = displayWidth;
+                    canvasEl.height = displayHeight;
+                }
+            }
+            window.addEventListener('resize', () => {
+                if (cameraStream) resizeCanvas();
+            });
+
+            // ==================== MODEL LOADING ==================== */
+            /**
+             * Load the COCO-SSD model from TensorFlow.js
+             * @returns {Promise<void>}
+             */
+            async function loadModel() {
+                updateAlertBanner('info', '⏳ Loading COCO-SSD model...');
+                aiStatus.textContent = '🤖 AI: Loading model...';
+                try {
+                    cocoModel = await cocoSsd.load({
+                        base: 'mobilenet_v2', // Options: 'mobilenet_v1', 'mobilenet_v2', 'lite_mobilenet_v2'
+                    });
+                    aiStatus.textContent = '🤖 AI: Model loaded ✅';
+                    updateAlertBanner('info', '🧠 AI model loaded successfully!');
+                } catch (error) {
+                    console.error('Model loading error:', error);
+                    aiStatus.textContent = '🤖 AI: Model failed ❌';
+                    updateAlertBanner('danger', '❌ Failed to load AI model. Check your internet connection.');
+                    throw error;
+                }
+            }
+
+            // ==================== DETECTION LOOP ==================== */
+            /**
+             * Start the continuous detection loop using requestAnimationFrame
+             */
+            function startDetectionLoop() {
+                if (detectionLoopId) return; // Already running
+                isDetecting = true;
+                lastDetectionTime = 0;
+                detectionLoop();
+            }
+
+            /**
+             * Stop the detection loop
+             */
+            function stopDetectionLoop() {
+                isDetecting = false;
+                if (detectionLoopId) {
+                    cancelAnimationFrame(detectionLoopId);
+                    detectionLoopId = null;
+                }
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+
+            /**
+             * Main detection loop — runs on requestAnimationFrame,
+             * throttles actual model inference to detectionIntervalMs
+             */
+            function detectionLoop() {
+                if (!isDetecting) return;
+                detectionLoopId = requestAnimationFrame(detectionLoop);
+
+                const now = performance.now();
+                if (now - lastDetectionTime < detectionIntervalMs) return;
+                lastDetectionTime = now;
+
+                if (!cocoModel || !cameraStream || videoEl.readyState < 2) return;
+
+                runDetection();
+            }
+
+            /**
+             * Execute a single detection pass on the current video frame
+             */
+            async function runDetection() {
+                if (!cocoModel || !cameraStream) return;
+                try {
+                    const predictions = await cocoModel.detect(videoEl);
+                    // Filter by confidence threshold
+                    currentPredictions = predictions.filter(p => p.score >= confidenceThreshold);
+                    // Draw bounding boxes
+                    drawBoundingBoxes(currentPredictions);
+                    // Update detected objects list
+                    updateDetectedList(currentPredictions);
+                    // Handle voice alerts
+                    if (voiceEnabled) {
+                        handleVoiceAlerts(currentPredictions);
+                    }
+                    // Handle visual alerts
+                    handleVisualAlerts(currentPredictions);
+                } catch (error) {
+                    console.warn('Detection error (non-fatal):', error.message);
+                }
+            }
+
+            // ==================== DRAWING BOUNDING BOXES ==================== */
+            /**
+             * Draw bounding boxes and labels on the canvas overlay
+             * @param {Array} predictions - Array of COCO-SSD prediction objects
+             */
+            function drawBoundingBoxes(predictions) {
+                resizeCanvas(); // Ensure canvas matches current video display size
+                ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+                if (predictions.length === 0) return;
+
+                const videoNaturalW = videoEl.videoWidth;
+                const videoNaturalH = videoEl.videoHeight;
+                const displayW = canvasEl.width;
+                const displayH = canvasEl.height;
+
+                // Scale factors from natural video resolution to display size
+                const scaleX = displayW / videoNaturalW;
+                const scaleY = displayH / videoNaturalH;
+
+                predictions.forEach(pred => {
+                    const [x, y, w, h] = pred.bbox;
+                    // Scale coordinates to display size
+                    const sx = x * scaleX;
+                    const sy = y * scaleY;
+                    const sw = w * scaleX;
+                    const sh = h * scaleY;
+
+                    // Determine color based on object type
+                    let boxColor = '#4F7CFF'; // default blue
+                    if (pred.class === 'person') boxColor = '#FF6B6B'; // red for people
+                    else if (['car', 'truck', 'bus', 'motorcycle'].includes(pred.class)) boxColor = '#FFA94D'; // orange
+                        // for vehicles
+                    else if (['dog', 'cat', 'bird'].includes(pred.class)) boxColor = '#69DB7C'; // green for animals
+
+                    // Draw filled background for label
+                    const label = `${pred.class} ${Math.round(pred.score * 100)}%`;
+                    ctx.font = '600 13px "Poppins", "Inter", sans-serif';
+                    const textMetrics = ctx.measureText(label);
+                    const textWidth = textMetrics.width;
+                    const textHeight = 20;
+                    const labelY = sy - textHeight - 6;
+
+                    // Draw bounding box
+                    ctx.strokeStyle = boxColor;
+                    ctx.lineWidth = 3;
+                    ctx.shadowColor = boxColor;
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.roundRect(sx, sy, sw, sh, 8);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+
+                    // Draw label background
+                    if (labelY > 0) {
+                        ctx.fillStyle = boxColor;
+                        ctx.beginPath();
+                        ctx.roundRect(sx, labelY, textWidth + 14, textHeight + 4, 6);
+                        ctx.fill();
+                        // Draw label text
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillText(label, sx + 7, labelY + textHeight - 3);
+                    } else {
+                        // Label inside the box at the top
+                        ctx.fillStyle = boxColor;
+                        ctx.beginPath();
+                        ctx.roundRect(sx + 2, sy + 2, textWidth + 14, textHeight + 4, 6);
+                        ctx.fill();
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillText(label, sx + 9, sy + textHeight - 1);
+                    }
+
+                    // Draw small corner accents
+                    const cornerLen = Math.min(sw, sh) * 0.2;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                    ctx.lineWidth = 1.5;
+                    ctx.shadowBlur = 0;
+                    // Top-left corner
+                    ctx.beginPath();
+                    ctx.moveTo(sx + 3, sy + cornerLen);
+                    ctx.lineTo(sx + 3, sy + 3);
+                    ctx.lineTo(sx + cornerLen, sy + 3);
+                    ctx.stroke();
+                    // Top-right corner
+                    ctx.beginPath();
+                    ctx.moveTo(sx + sw - cornerLen, sy + 3);
+                    ctx.lineTo(sx + sw - 3, sy + 3);
+                    ctx.lineTo(sx + sw - 3, sy + cornerLen);
+                    ctx.stroke();
+                    // Bottom-left corner
+                    ctx.beginPath();
+                    ctx.moveTo(sx + 3, sy + sh - cornerLen);
+                    ctx.lineTo(sx + 3, sy + sh - 3);
+                    ctx.lineTo(sx + cornerLen, sy + sh - 3);
+                    ctx.stroke();
+                    // Bottom-right corner
+                    ctx.beginPath();
+                    ctx.moveTo(sx + sw - cornerLen, sy + sh - 3);
+                    ctx.lineTo(sx + sw - 3, sy + sh - 3);
+                    ctx.lineTo(sx + sw - 3, sy + sh - cornerLen);
+                    ctx.stroke();
+                });
+            }
+
+            // ==================== UPDATE DETECTED LIST ==================== */
+            /**
+             * Update the right panel with currently detected objects
+             * @param {Array} predictions
+             */
+            function updateDetectedList(predictions) {
+                detectedList.innerHTML = '';
+                if (predictions.length === 0) {
+                    detectedList.innerHTML =
+                        '<div class="no-detections">No objects detected.<br>🔍 Try pointing at something!</div>';
+                    return;
+                }
+                // Sort by confidence descending
+                const sorted = [...predictions].sort((a, b) => b.score - a.score);
+                sorted.forEach(pred => {
+                    const confidencePercent = Math.round(pred.score * 100);
+                    let confLevel = 'low';
+                    if (confidencePercent >= 75) confLevel = 'high';
+                    else if (confidencePercent >= 50) confLevel = 'medium';
+
+                    const item = document.createElement('div');
+                    item.className = 'detected-item';
+                    item.innerHTML = `
+                                <span class="obj-emoji">${getObjectEmoji(pred.class)}</span>
+                                <div class="obj-info">
+                                    <div class="obj-name">${pred.class}</div>
+                                    <div class="obj-confidence">Confidence: ${confidencePercent}%</div>
+                                    <div class="confidence-bar-wrap">
+                                        <div class="confidence-bar-fill ${confLevel}" style="width:${confidencePercent}%;"></div>
+                                    </div>
+                                </div>
+                            `;
+                    detectedList.appendChild(item);
+                });
+            }
+
+            // ==================== VOICE ALERTS ==================== */
+            /**
+             * Speak detected objects using the Web Speech API
+             * @param {Array} predictions
+             */
+            function handleVoiceAlerts(predictions) {
+                if (!voiceEnabled || predictions.length === 0) return;
+                if (!window.speechSynthesis) return; // Browser doesn't support speech synthesis
+
+                const now = Date.now();
+                const cooldownMs = voiceCooldownSec * 1000;
+
+                // In blind assist mode, prioritize person, vehicle announcements
+                const priorityObjects = currentMode === 'blind-assist' ?
+                    ['person', 'car', 'truck', 'bus', 'motorcycle', 'bicycle', 'dog', 'stair', 'door'] :
+                    ['person', 'car', 'truck', 'bus', 'motorcycle'];
+
+                // Build list of objects to announce
+                const toAnnounce = [];
+                for (const pred of predictions) {
+                    const className = pred.class.toLowerCase();
+                    const lastSpoken = lastSpokenTimestamps[className] || 0;
+                    const isPriority = priorityObjects.includes(className);
+
+                    // Determine cooldown: shorter for priority objects in blind assist mode
+                    const effectiveCooldown = (currentMode === 'blind-assist' && isPriority) ?
+                        Math.min(cooldownMs, 2500) :
+                        cooldownMs;
+
+                    if (now - lastSpoken > effectiveCooldown) {
+                        toAnnounce.push({ class: className, score: pred.score, bbox: pred.bbox, isPriority });
+                        lastSpokenTimestamps[className] = now;
+                    }
+                }
+
+                if (toAnnounce.length === 0) return;
+
+                // Build speech text
+                let speechText = '';
+                if (currentMode === 'blind-assist' && toAnnounce.some(o => o.isPriority)) {
+                    // More descriptive for blind assist
+                    const phrases = toAnnounce.map(obj => {
+                        const distance = estimateDistance(obj.bbox);
+                        const position = estimatePosition(obj.bbox);
+                        return `${obj.class} ${position}${distance ? ', ' + distance : ''}`;
+                    });
+                    speechText = phrases.join('. ') + '.';
+                } else {
+                    const names = toAnnounce.map(o => o.class);
+                    if (names.length === 1) {
+                        speechText = `${names[0]} detected.`;
+                    } else if (names.length === 2) {
+                        speechText = `${names[0]} and ${names[1]} detected.`;
+                    } else {
+                        speechText = `${names.slice(0, 3).join(', ')} and others detected.`;
+                    }
+                }
+
+                // Speak
+                const utterance = new SpeechSynthesisUtterance(speechText);
+                utterance.rate = voiceRate;
+                utterance.pitch = 1.0;
+                utterance.volume = 0.9;
+                // Try to use a pleasant voice
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    const preferredVoice = voices.find(v =>
+                        v.name.includes('Google') && v.name.includes('Female')
+                    ) || voices.find(v => v.name.includes('Samantha')) || voices[0];
+                    if (preferredVoice) utterance.voice = preferredVoice;
+                }
+                window.speechSynthesis.speak(utterance);
+            }
+
+            /**
+             * Estimate distance based on bounding box size relative to frame
+             * @param {Array} bbox - [x, y, width, height]
+             * @returns {string} distance description
+             */
+            function estimateDistance(bbox) {
+                const frameArea = videoEl.videoWidth * videoEl.videoHeight;
+                const bboxArea = bbox[2] * bbox[3];
+                const ratio = bboxArea / frameArea;
+                if (ratio > 0.35) return 'very close';
+                if (ratio > 0.15) return 'nearby';
+                if (ratio > 0.05) return 'at a moderate distance';
+                return 'far away';
+            }
+
+            /**
+             * Estimate horizontal position based on bbox x-coordinate
+             * @param {Array} bbox - [x, y, width, height]
+             * @returns {string} position description
+             */
+            function estimatePosition(bbox) {
+                const centerX = bbox[0] + bbox[2] / 2;
+                const frameWidth = videoEl.videoWidth;
+                const relativeX = centerX / frameWidth;
+                if (relativeX < 0.3) return 'on the left';
+                if (relativeX > 0.7) return 'on the right';
+                return 'straight ahead';
+            }
+
+            // ==================== VISUAL ALERTS ==================== */
+            /**
+             * Update the alert banner based on detected objects
+             * @param {Array} predictions
+             */
+            function handleVisualAlerts(predictions) {
+                const now = Date.now();
+                const alertCooldownMs = 3000; // 3 seconds between banner changes
+
+                // Check for important objects
+                const hasPerson = predictions.some(p => p.class === 'person' && p.score >= 0.6);
+                const hasVehicle = predictions.some(p =>
+                    ['car', 'truck', 'bus', 'motorcycle'].includes(p.class) && p.score >= 0.55
+                );
+                const hasAnimal = predictions.some(p =>
+                    ['dog', 'cat', 'bear'].includes(p.class) && p.score >= 0.5
+                );
+
+                const lastAlert = lastAlertTimestamps['visual'] || 0;
+                if (now - lastAlert < alertCooldownMs) return;
+
+                if (hasPerson && currentMode === 'blind-assist') {
+                    updateAlertBanner('danger', '⚠️ Person detected nearby — please be aware');
+                    lastAlertTimestamps['visual'] = now;
+                } else if (hasVehicle) {
+                    updateAlertBanner('danger', '🚗 Vehicle detected — exercise caution');
+                    lastAlertTimestamps['visual'] = now;
+                } else if (hasPerson) {
+                    updateAlertBanner('info', '🧑 Person detected in frame');
+                    lastAlertTimestamps['visual'] = now;
+                } else if (hasAnimal) {
+                    updateAlertBanner('info', '🐾 Animal detected nearby');
+                    lastAlertTimestamps['visual'] = now;
+                } else if (predictions.length === 0) {
+                    updateAlertBanner('info', '👀 Scanning... no objects detected');
+                    lastAlertTimestamps['visual'] = now;
+                }
+            }
+
+            /**
+             * Update the alert banner with a message
+             * @param {string} type - 'info' | 'danger'
+             * @param {string} message
+             */
+            function updateAlertBanner(type, message) {
+                alertText.textContent = message;
+                alertBanner.classList.remove('danger', 'visible');
+                if (type === 'danger') {
+                    alertBanner.classList.add('danger');
+                }
+                // Trigger reflow for animation restart
+                void alertBanner.offsetWidth;
+                alertBanner.classList.add('visible');
+                const iconEl = alertBanner.querySelector('.alert-icon');
+                if (type === 'danger') iconEl.textContent = '⚠️';
+                else if (message.includes('✅') || message.includes('ready')) iconEl.textContent = '✅';
+                else if (message.includes('⏳') || message.includes('Loading')) iconEl.textContent = '⏳';
+                else if (message.includes('👀') || message.includes('Scanning')) iconEl.textContent = '👀';
+                else iconEl.textContent = 'ℹ️';
+            }
+
+            // ==================== STATUS UPDATES ==================== */
+            /**
+             * Update footer status indicator
+             * @param {string} state - 'loading' | 'active' | 'error'
+             * @param {string} text
+             */
+            function updateStatus(state, text) {
+                statusText.textContent = text;
+                statusDot.classList.remove('active', 'warning');
+                if (state === 'active') statusDot.classList.add('active');
+                else if (state === 'loading') statusDot.classList.add('warning');
+                // 'error' leaves the dot gray/default
+            }
+
+            // ==================== INITIALIZATION ==================== */
+            /**
+             * Initialize the entire application
+             */
+            async function init() {
+                updateStatus('loading', 'Camera: Initializing...');
+                updateAlertBanner('info', '🚀 Welcome to Kaewai Vision! Click "Detect" or wait for auto-start...');
+
+                // Preload voices
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.getVoices();
+                    window.speechSynthesis.onvoiceschanged = () => {
+                        window.speechSynthesis.getVoices();
+                    };
+                }
+
+                // Auto-initialize camera after a short delay
+                setTimeout(async () => {
+                    await initializeCamera();
+                }, 800);
+
+                // Handle window resize for canvas
+                window.addEventListener('resize', () => {
+                    if (cameraStream) {
+                        resizeCanvas();
+                        // Redraw last predictions on resize
+                        if (currentPredictions.length > 0) {
+                            drawBoundingBoxes(currentPredictions);
+                        }
+                    }
+                });
+
+                // Handle page visibility changes
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        stopDetectionLoop();
+                    } else if (cameraStream && cocoModel) {
+                        startDetectionLoop();
+                        resizeCanvas();
+                    }
+                });
+            }
+
+            // ==================== POLYFILL: Canvas roundRect ==================== */
+            if (!ctx.roundRect) {
+                ctx.roundRect = function(x, y, w, h, r) {
+                    if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+                    ctx.beginPath();
+                    ctx.moveTo(x + r.tl, y);
+                    ctx.lineTo(x + w - r.tr, y);
+                    ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+                    ctx.lineTo(x + w, y + h - r.br);
+                    ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+                    ctx.lineTo(x + r.bl, y + h);
+                    ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+                    ctx.lineTo(x, y + r.tl);
+                    ctx.quadraticCurveTo(x, y, x + r.tl, y);
+                    ctx.closePath();
+                };
+            }
+
+            // ==================== START APP ==================== */
+            init().catch(err => {
+                console.error('Initialization error:', err);
+                updateStatus('error', 'Camera: Failed to start');
+                updateAlertBanner('danger', '❌ App initialization failed. Please reload the page.');
+            });
+
+            // Log ready state
+            console.log('💙 Kaewai Vision — AI Object Detection Assistant');
+            console.log('📷 Camera: Will initialize shortly...');
+            console.log('🤖 Model: COCO-SSD (TensorFlow.js)');
+            console.log('🔊 Voice: Web Speech API ready:', !!window.speechSynthesis);
+            console.log('🌐 GitHub-ready | No backend required');
+        })();
+    </script>
+</body>
+</html>
